@@ -46,6 +46,7 @@ import { Position, Uri } from 'vscode';
 import { RemapState } from '../state/remapState';
 import * as process from 'process';
 import { EasyMotion } from '../actions/plugins/easymotion/easymotion';
+import { debugDelay } from '..//util/debugDelay';
 
 interface IModeHandlerMap {
   get(editorId: Uri): ModeHandler | undefined;
@@ -1376,13 +1377,16 @@ export class ModeHandler implements vscode.Disposable, IModeHandler {
         );
       }
 
+      // console.log('selections :>> ', selections);
       this.vimState.editor.selections = selections;
     }
 
     // Scroll to position of cursor
     if (
       this.vimState.editor.visibleRanges.length > 0 &&
-      !this.vimState.postponedCodeViewChanges.some((change) => change.command === 'editorScroll')
+      !this.vimState.postponedCodeViewChanges.some(
+        (change) => change.command === 'editorScroll' || change.command === 'revealLine'
+      )
     ) {
       /**
        * This variable decides to which cursor we scroll the view.
@@ -1635,7 +1639,11 @@ export class ModeHandler implements vscode.Disposable, IModeHandler {
     this.vimState.editor.setDecorations(decoration.easyMotionIncSearch, easyMotionHighlightRanges);
 
     for (const viewChange of this.vimState.postponedCodeViewChanges) {
-      vscode.commands.executeCommand(viewChange.command, viewChange.args);
+      console.log('viewChange', viewChange);
+      if (viewChange.command !== 'editorScroll') {
+        vscode.commands.executeCommand(viewChange.command, viewChange.args);
+        debugDelay.add('VIEW CHANGE');
+      }
     }
     this.vimState.postponedCodeViewChanges = [];
 

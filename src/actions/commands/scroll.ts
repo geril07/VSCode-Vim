@@ -88,9 +88,13 @@ abstract class CommandScrollAndMoveCursor extends BaseCommand {
     const smoothScrolling = configuration
       .getConfiguration('editor')
       .get<boolean>('smoothScrolling', false);
+    const halfPageScrollCentered = configuration
+      .getConfiguration('vim')
+      .get<boolean>('halfPageScrollCentered', false);
     const moveLines = (vimState.actionCount || 1) * this.getNumLines(visibleRanges);
 
     let scrollLines = moveLines;
+    const isScrollHalfPage = this.keys[0] === '<C-u>' || this.keys[0] === '<C-d>';
     if (this.to === 'down') {
       // This makes <C-d> less wonky when `editor.scrollBeyondLastLine` is enabled
       scrollLines = Math.min(
@@ -98,6 +102,11 @@ abstract class CommandScrollAndMoveCursor extends BaseCommand {
         vimState.document.lineCount - 1 - visibleRanges[visibleRanges.length - 1].end.line
       );
     }
+    const newPositionLine = clamp(
+      position.line + (this.to === 'down' ? moveLines : -moveLines),
+      0,
+      vimState.document.lineCount - 1
+    );
 
     if (scrollLines > 0) {
       const args = {
@@ -107,7 +116,19 @@ abstract class CommandScrollAndMoveCursor extends BaseCommand {
         revealCursor: smoothScrolling,
         select: isVisualMode(vimState.currentMode),
       };
-      if (smoothScrolling) {
+      if (isScrollHalfPage && halfPageScrollCentered) {
+        // vimState.postponedCodeViewChanges.push({
+        //   command: 'revealLine',
+        //   args: {
+        //     lineNumber: newPositionLine,
+        //     at: 'center',
+        //   },
+        // });
+        vscode.commands.executeCommand('revealLine', {
+          lineNumber: newPositionLine,
+          at: 'center',
+        });
+      } else if (smoothScrolling) {
         await vscode.commands.executeCommand('editorScroll', args);
       } else {
         vimState.postponedCodeViewChanges.push({
@@ -117,11 +138,6 @@ abstract class CommandScrollAndMoveCursor extends BaseCommand {
       }
     }
 
-    const newPositionLine = clamp(
-      position.line + (this.to === 'down' ? moveLines : -moveLines),
-      0,
-      vimState.document.lineCount - 1
-    );
     vimState.cursorStopPosition = new Position(
       newPositionLine,
       vimState.desiredColumn
@@ -185,10 +201,17 @@ class CommandCenterScroll extends BaseCommand {
 
   public override async exec(position: Position, vimState: VimState): Promise<void> {
     // In these modes you want to center on the cursor position
-    vimState.editor.revealRange(
-      new vscode.Range(vimState.cursorStopPosition, vimState.cursorStopPosition),
-      vscode.TextEditorRevealType.InCenter
-    );
+    vimState.postponedCodeViewChanges.push({
+      command: 'revealLine',
+      args: {
+        lineNumber: position.line,
+        at: 'center',
+      },
+    });
+    // vimState.editor.revealRange(
+    //   new vscode.Range(vimState.cursorStopPosition, vimState.cursorStopPosition),
+    //   vscode.TextEditorRevealType.InCenter
+    // );
   }
 }
 
