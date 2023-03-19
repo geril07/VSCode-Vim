@@ -1114,6 +1114,11 @@
           "type": "string",
           "description": "Path to the shell to use for `!` and `:!` commands.",
           "default": ""
+        },
+        "vim.halfPageScrollCentered": {
+          "type": "boolean",
+          "description": "Center scroll view on cursor position when using commands: `<C-d>`, `<C-u>`",
+          "default": false
         }
       }
     },

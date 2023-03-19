@@ -17,6 +17,7 @@ import { ExCommandLine, SearchCommandLine } from '../cmd_line/commandLine';
 import { ModeData } from '../mode/modeData';
 import { SearchDirection } from '../vimscript/pattern';
 import { globalState } from './globalState';
+import { debugDelay } from '../util/debugDelay';
 
 interface IInputMethodSwitcher {
   switchInputMethod(prevMode: Mode, newMode: Mode): Promise<void>;
@@ -137,6 +138,9 @@ export class VimState implements vscode.Disposable {
       Logger.warn(`invalid cursor start position. ${value.toString()}.`);
     }
     this.cursors[0] = this.cursors[0].withNewStart(value);
+    debugDelay.add('START CURSOR');
+    console.log('actions', debugDelay.actions);
+    // debugDelay.clear();
   }
 
   public get cursorStopPosition(): Position {
@@ -146,7 +150,10 @@ export class VimState implements vscode.Disposable {
     if (!value.isValid(this.editor)) {
       Logger.warn(`invalid cursor stop position. ${value.toString()}.`);
     }
+    // console.log('cursors before', this.cursors);
     this.cursors[0] = this.cursors[0].withNewStop(value);
+    // console.log('set cursor', this.cursors, new Date().getTime());
+    debugDelay.add('STOP CURSOR');
   }
 
   /**
