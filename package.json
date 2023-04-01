@@ -1,10 +1,10 @@
 {
-  "name": "vim",
-  "displayName": "Vim",
+  "name": "geril-vim",
+  "displayName": "Vim Geril",
   "description": "Vim emulation for Visual Studio Code",
   "icon": "images/icon.png",
   "version": "1.25.2",
-  "publisher": "vscodevim",
+  "publisher": "geril",
   "galleryBanner": {
     "color": "#e3f4ff",
     "theme": "light"
@@ -17,11 +17,11 @@
   ],
   "repository": {
     "type": "git",
-    "url": "https://github.com/VSCodeVim/Vim.git"
+    "url": "https://github.com/geril2207/VSCode-Vim"
   },
-  "homepage": "https://github.com/VSCodeVim/Vim",
+  "homepage": "https://github.com/geril2207/VSCode-Vim",
   "bugs": {
-    "url": "https://github.com/VSCodeVim/Vim/issues"
+    "url": "https://github.com/geril2207/VSCode-Vim/issues"
   },
   "engines": {
     "vscode": "^1.74.0"
