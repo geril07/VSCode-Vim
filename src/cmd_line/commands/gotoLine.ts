@@ -8,8 +8,18 @@ export class GotoLineCommand extends ExCommand {
   }
 
   public override async executeWithRange(vimState: VimState, range: LineRange): Promise<void> {
+    const newLine = range.resolve(vimState).end;
+
+    vimState.postponedCodeViewChanges.push({
+      command: 'revealLine',
+      args: {
+        lineNumber: newLine,
+        at: 'center',
+      },
+    });
+
     vimState.cursorStartPosition = vimState.cursorStopPosition = vimState.cursorStopPosition
-      .with({ line: range.resolve(vimState).end })
+      .with({ line: newLine })
       .obeyStartOfLine(vimState.document);
   }
 }
