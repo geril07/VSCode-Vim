@@ -1,25 +1,25 @@
 import { strict as assert } from 'assert';
 import * as fs from 'fs';
 import * as os from 'os';
+import * as path from 'path';
 import { join } from 'path';
 import { promisify } from 'util';
 import * as vscode from 'vscode';
-import * as path from 'path';
 
-import { Configuration } from './testConfiguration';
-import { Globals } from '../src/globals';
-import { ValidatorResults } from '../src/configuration/iconfigurationValidator';
-import { IConfiguration } from '../src/configuration/iconfiguration';
-import { getAndUpdateModeHandler } from '../extension';
 import { ExCommandLine } from '../src/cmd_line/commandLine';
+import { IConfiguration } from '../src/configuration/iconfiguration';
+import { Globals } from '../src/globals';
+import { ModeHandlerMap } from '../src/mode/modeHandlerMap';
 import { StatusBar } from '../src/statusBar';
-import { SpecialKeys } from '../src/util/specialKeys';
+import { TextEditor } from '../src/textEditor';
+import { Configuration } from './testConfiguration';
 
 class TestMemento implements vscode.Memento {
   private mapping = new Map<string, any>();
   get<T>(key: string): T | undefined;
   get<T>(key: string, defaultValue: T): T;
   get(key: any, defaultValue?: any) {
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-return, @typescript-eslint/no-unsafe-argument
     return this.mapping.get(key) || defaultValue;
   }
 
@@ -65,36 +65,28 @@ export function rndName(): string {
   return Math.random()
     .toString(36)
     .replace(/[^a-z]+/g, '')
-    .substr(0, 10);
+    .substring(0, 10);
 }
 
-export async function createRandomFile(contents: string, fileExtension: string): Promise<string> {
-  const tmpFile = join(os.tmpdir(), rndName() + fileExtension);
-  await promisify(fs.writeFile)(tmpFile, contents);
-  return tmpFile;
+export async function createFile(
+  args: {
+    fsPath?: string;
+    fileExtension?: string;
+    contents?: string;
+  } = {},
+): Promise<string> {
+  if (args.fileExtension) {
+    assert.ok(args.fileExtension.startsWith('.'));
+  }
+  args.fsPath ??= join(os.tmpdir(), rndName() + (args.fileExtension ?? ''));
+  await promisify(fs.writeFile)(args.fsPath, args.contents ?? '');
+  return args.fsPath;
 }
 
-export async function createRandomDir() {
-  const dirPath = join(os.tmpdir(), rndName());
-  return createDir(dirPath);
-}
-
-export async function createEmptyFile(fsPath: string) {
-  await promisify(fs.writeFile)(fsPath, '');
-  return fsPath;
-}
-
-export async function createDir(fsPath: string) {
+export async function createDir(fsPath?: string): Promise<string> {
+  fsPath ??= join(os.tmpdir(), rndName());
   await promisify(fs.mkdir)(fsPath);
   return fsPath;
-}
-
-export async function removeFile(fsPath: string) {
-  return promisify(fs.unlink)(fsPath);
-}
-
-export async function removeDir(fsPath: string) {
-  return promisify(fs.rmdir)(fsPath);
 }
 
 /**
@@ -103,14 +95,15 @@ export async function removeDir(fsPath: string) {
  *
  * @param numExpectedEditors Expected number of editors in the window
  */
-export async function WaitForEditorsToClose(numExpectedEditors: number = 0): Promise<void> {
+export async function waitForEditorsToClose(numExpectedEditors: number = 0): Promise<void> {
   const waitForTextEditorsToClose = new Promise<void>((c, e) => {
     if (vscode.window.visibleTextEditors.length === numExpectedEditors) {
       return c();
     }
 
-    vscode.window.onDidChangeVisibleTextEditors(() => {
+    const subscription = vscode.window.onDidChangeVisibleTextEditors(() => {
       if (vscode.window.visibleTextEditors.length === numExpectedEditors) {
+        subscription.dispose();
         c();
       }
     });
@@ -119,89 +112,86 @@ export async function WaitForEditorsToClose(numExpectedEditors: number = 0): Pro
   try {
     await waitForTextEditorsToClose;
   } catch (error) {
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
     assert.fail(error);
   }
 }
 
 export function assertEqualLines(expectedLines: string[]) {
-  assert.strictEqual(
+  assert.equal(
     vscode.window.activeTextEditor?.document.getText(),
     expectedLines.join(os.EOL),
-    'Document content does not match.'
+    'Document content does not match.',
   );
 }
 
 export function assertStatusBarEqual(
   expectedText: string,
-  message: string = 'Status bar text does not match'
+  message: string = 'Status bar text does not match',
 ) {
-  assert.strictEqual(StatusBar.getText(), expectedText, message);
+  assert.equal(StatusBar.getText(), expectedText, message);
 }
 
 export async function setupWorkspace(
-  config: IConfiguration = new Configuration(),
-  fileExtension: string = ''
+  args: {
+    config?: Partial<IConfiguration>;
+    fileExtension?: string;
+    newFileContent?: string;
+    forceNewFile?: boolean;
+    disableCleanUp?: boolean;
+  } = {},
 ): Promise<void> {
   await ExCommandLine.loadHistory(new TestExtensionContext());
-  const filePath = await createRandomFile('', fileExtension);
-  const doc = await vscode.workspace.openTextDocument(vscode.Uri.file(filePath));
 
-  await vscode.window.showTextDocument(doc);
+  if (
+    vscode.window.activeTextEditor === undefined ||
+    vscode.window.activeTextEditor.document.isUntitled ||
+    vscode.window.visibleTextEditors.length > 1 ||
+    (args.fileExtension &&
+      !vscode.window.activeTextEditor.document.fileName.endsWith(args.fileExtension)) ||
+    args.forceNewFile
+  ) {
+    if (!args.disableCleanUp) await cleanUpWorkspace();
+    const filePath = await createFile({
+      fileExtension: args.fileExtension,
+      contents: args.newFileContent,
+    });
+    const doc = await vscode.workspace.openTextDocument(vscode.Uri.file(filePath));
+    await vscode.window.showTextDocument(doc);
+  }
 
-  Globals.mockConfiguration = config;
+  Globals.mockConfiguration = new Configuration();
+  Object.assign(Globals.mockConfiguration, args?.config ?? {});
   await reloadConfiguration();
 
   const activeTextEditor = vscode.window.activeTextEditor;
   assert.ok(activeTextEditor);
 
-  activeTextEditor.options.tabSize = config.tabstop;
-  activeTextEditor.options.insertSpaces = config.expandtab;
+  activeTextEditor.options.tabSize = Globals.mockConfiguration.tabstop;
+  activeTextEditor.options.insertSpaces = Globals.mockConfiguration.expandtab;
 
-  await mockAndEnable();
+  assert.ok(
+    await activeTextEditor.edit((builder) => {
+      builder.delete(TextEditor.getDocumentRange(activeTextEditor.document));
+    }),
+    'Edit failed',
+  );
+
+  if (!args.disableCleanUp) ModeHandlerMap.clear();
 }
 
-const mockAndEnable = async () => {
-  await vscode.commands.executeCommand('setContext', 'vim.active', true);
-  const mh = (await getAndUpdateModeHandler())!;
-  await mh.handleKeyEvent(SpecialKeys.ExtensionEnable);
-};
-
 export async function cleanUpWorkspace(): Promise<void> {
-  return new Promise<void>((c, e) => {
-    if (vscode.window.visibleTextEditors.length === 0) {
-      return c();
-    }
-
-    // TODO: the visibleTextEditors variable doesn't seem to be
-    // up to date after a onDidChangeActiveTextEditor event, not
-    // even using a setTimeout 0... so we MUST poll :(
-    const interval = setInterval(() => {
-      if (vscode.window.visibleTextEditors.length > 0) {
-        return;
-      }
-
-      clearInterval(interval);
-      c();
-    }, 10);
-
-    vscode.commands.executeCommand('workbench.action.closeAllEditors').then(
-      () => null,
-      (err: any) => {
-        clearInterval(interval);
-        e(err);
-      }
-    );
-  }).then(() => {
-    assert.strictEqual(vscode.window.visibleTextEditors.length, 0, 'Expected all editors closed.');
-    assert(!vscode.window.activeTextEditor, 'Expected no active text editor.');
-  });
+  await vscode.commands.executeCommand('workbench.action.closeAllEditors');
+  assert.equal(vscode.window.visibleTextEditors.length, 0, 'Expected all editors closed.');
+  assert(!vscode.window.activeTextEditor, 'Expected no active text editor.');
 }
 
 export async function reloadConfiguration() {
-  const validatorResults =
-    (await require('../src/configuration/configuration').configuration.load()) as ValidatorResults;
+  const validatorResults = await (
+    await import('../src/configuration/configuration')
+  ).configuration.load();
   for (const validatorResult of validatorResults.get()) {
-    console.log(validatorResult);
+    console.warn(validatorResult);
   }
 }
 
@@ -215,10 +205,21 @@ export async function waitForTabChange(): Promise<void> {
   await new Promise((resolve, reject) => {
     setTimeout(resolve, 500);
 
-    const disposer = vscode.window.onDidChangeActiveTextEditor((textEditor) => {
-      disposer.dispose();
+    const subscription = vscode.window.onDidChangeActiveTextEditor((textEditor) => {
+      subscription.dispose();
 
       resolve(textEditor);
     });
   });
+}
+
+export async function replaceContent(
+  document: vscode.TextDocument,
+  content: string,
+): Promise<void> {
+  const edit = new vscode.WorkspaceEdit();
+  edit.replace(document.uri, TextEditor.getDocumentRange(document), content);
+  const isApplied = await vscode.workspace.applyEdit(edit);
+
+  if (!isApplied) throw new Error(`Failed to replace content`);
 }

@@ -1,5 +1,4 @@
-import { cleanUpWorkspace, setupWorkspace } from './../testUtils';
-import { Configuration } from '../testConfiguration';
+import { setupWorkspace } from './../testUtils';
 import { newTest } from '../testSimplifier';
 import {
   CommandSurroundAddSurroundingFunction,
@@ -7,13 +6,14 @@ import {
 } from '../../src/actions/plugins/surround';
 
 suite('surround plugin', () => {
-  setup(async () => {
-    const configuration = new Configuration();
-    configuration.surround = true;
-    await setupWorkspace(configuration, '.js');
+  suiteSetup(async () => {
+    await setupWorkspace({
+      config: {
+        surround: true,
+      },
+      fileExtension: '.js',
+    });
   });
-
-  teardown(cleanUpWorkspace);
 
   newTest({
     title: "'ysiw)' surrounds word without space",
@@ -457,6 +457,18 @@ suite('surround plugin', () => {
   });
 
   newTest({
+    title: 'change surround with tags with kebab case names',
+    start: ['<custom-tag>|</custom-tag>'],
+    keysPressed: 'cstt',
+    end: ['<h1>|</h1>'],
+    stub: {
+      stubClass: CommandSurroundAddSurroundingTag,
+      methodName: 'readTag',
+      returnValue: 'h1',
+    },
+  });
+
+  newTest({
     title: 'change surround with tags that contain an attribute and remove them',
     start: ['<h2 test class="foo">b|ar</h2>'],
     keysPressed: 'cstt',
@@ -505,6 +517,18 @@ suite('surround plugin', () => {
       stubClass: CommandSurroundAddSurroundingTag,
       methodName: 'readTag',
       returnValue: 'div',
+    },
+  });
+
+  newTest({
+    title: "'VStt' surrounds selection and correctly trims class attribute in closing tag",
+    start: ['first li|ne test'],
+    keysPressed: 'VStt',
+    end: ['<div class="test">', 'first line test', '|</div>'],
+    stub: {
+      stubClass: CommandSurroundAddSurroundingTag,
+      methodName: 'readTag',
+      returnValue: 'div class="test"',
     },
   });
 

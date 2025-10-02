@@ -1,6 +1,6 @@
 import { getAndUpdateModeHandler } from '../../extension';
 import { ModeHandler } from '../../src/mode/modeHandler';
-import { assertEqualLines, cleanUpWorkspace, setupWorkspace } from './../testUtils';
+import { assertEqualLines, setupWorkspace } from './../testUtils';
 import * as assert from 'assert';
 import { Register, RegisterMode } from '../../src/register/register';
 
@@ -11,8 +11,6 @@ suite('put cmd_line', () => {
     await setupWorkspace();
     modeHandler = (await getAndUpdateModeHandler())!;
   });
-
-  teardown(cleanUpWorkspace);
 
   test('put in empty file', async () => {
     Register.put(modeHandler.vimState, 'abc');
@@ -124,5 +122,25 @@ suite('put cmd_line', () => {
     await modeHandler.handleMultipleKeyEvents(['i', '123\n456\n789', '<Esc>']);
     await modeHandler.handleMultipleKeyEvents(':1,2put\n'.split(''));
     assertEqualLines(['123', '456', 'abc', '789']);
+  });
+
+  test('put range expression', async () => {
+    Register.put(modeHandler.vimState, '');
+    await modeHandler.handleMultipleKeyEvents(':put=range(1,3)\n'.split(''));
+    assertEqualLines(['', '1', '2', '3']);
+  });
+
+  test('put range expression with step', async () => {
+    Register.put(modeHandler.vimState, '');
+    await modeHandler.handleMultipleKeyEvents(':put=range(4,1,-2)\n'.split(''));
+    assertEqualLines(['', '4', '2']);
+  });
+
+  test('`:put=` repeats last expression', async () => {
+    Register.put(modeHandler.vimState, '');
+    await modeHandler.handleMultipleKeyEvents(':put=[1,2,3]\n'.split(''));
+    assertEqualLines(['', '1', '2', '3']);
+    await modeHandler.handleMultipleKeyEvents(':put=\n'.split(''));
+    assertEqualLines(['', '1', '2', '3', '1', '2', '3']);
   });
 });

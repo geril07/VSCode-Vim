@@ -1,13 +1,9 @@
-import { cleanUpWorkspace, setupWorkspace } from './../../testUtils';
+import { setupWorkspace } from './../../testUtils';
 import { Mode } from '../../../src/mode/mode';
 import { newTest, newTestSkip } from '../../testSimplifier';
 
 suite('Motions in Normal Mode', () => {
-  setup(async () => {
-    await setupWorkspace();
-  });
-
-  teardown(cleanUpWorkspace);
+  suiteSetup(setupWorkspace);
 
   suite('w', () => {
     newTest({
@@ -971,7 +967,7 @@ suite('Motions in Normal Mode', () => {
         keysPressed: '10go',
         end: ['abc', 'def', 'g|hi'],
       },
-      process.platform === 'win32'
+      process.platform === 'win32',
     );
   });
 

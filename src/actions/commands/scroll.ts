@@ -74,6 +74,8 @@ abstract class CommandScrollAndMoveCursor extends BaseCommand {
   modes = [Mode.Normal, Mode.Visual, Mode.VisualLine, Mode.VisualBlock];
   override runsOnceForEachCountPrefix = false;
   abstract to: EditorScrollDirection;
+  /** if true, set scroll option instead of repeating command */
+  setScroll = false;
 
   /**
    * @returns the number of lines this command should move the cursor
@@ -85,13 +87,19 @@ abstract class CommandScrollAndMoveCursor extends BaseCommand {
     if (visibleRanges.length === 0) {
       return;
     }
+
     const smoothScrolling = configuration
       .getConfiguration('editor')
       .get<boolean>('smoothScrolling', false);
+
     const halfPageScrollCentered = configuration
       .getConfiguration('vim')
       .get<boolean>('halfPageScrollCentered', false);
-    const moveLines = (vimState.actionCount || 1) * this.getNumLines(visibleRanges);
+
+    if (this.setScroll && vimState.recordedState.count)
+      configuration.scroll = vimState.recordedState.count;
+    const timesToRepeat = (!this.setScroll && vimState.recordedState.count) || 1;
+    const moveLines = timesToRepeat * this.getNumLines(visibleRanges);
 
     let scrollLines = moveLines;
     const isScrollHalfPage = this.keys[0] === '<C-u>' || this.keys[0] === '<C-d>';
@@ -99,13 +107,13 @@ abstract class CommandScrollAndMoveCursor extends BaseCommand {
       // This makes <C-d> less wonky when `editor.scrollBeyondLastLine` is enabled
       scrollLines = Math.min(
         moveLines,
-        vimState.document.lineCount - 1 - visibleRanges[visibleRanges.length - 1].end.line
+        vimState.document.lineCount - 1 - visibleRanges[visibleRanges.length - 1].end.line,
       );
     }
     const newPositionLine = clamp(
       position.line + (this.to === 'down' ? moveLines : -moveLines),
       0,
-      vimState.document.lineCount - 1
+      vimState.document.lineCount - 1,
     );
 
     if (scrollLines > 0) {
@@ -140,7 +148,7 @@ abstract class CommandScrollAndMoveCursor extends BaseCommand {
 
     vimState.cursorStopPosition = new Position(
       newPositionLine,
-      vimState.desiredColumn
+      vimState.desiredColumn,
     ).obeyStartOfLine(vimState.document);
   }
 }
@@ -166,9 +174,10 @@ class CommandMoveFullPageDown extends CommandScrollAndMoveCursor {
 }
 
 @RegisterAction
-class CommandMoveHalfPageDown extends CommandScrollAndMoveCursor {
+class CommandCtrlD extends CommandScrollAndMoveCursor {
   keys = ['<C-d>'];
   to: EditorScrollDirection = 'down';
+  override setScroll = true;
 
   protected getNumLines(visibleRanges: vscode.Range[]) {
     return configuration.getScrollLines(visibleRanges);
@@ -176,9 +185,10 @@ class CommandMoveHalfPageDown extends CommandScrollAndMoveCursor {
 }
 
 @RegisterAction
-class CommandMoveHalfPageUp extends CommandScrollAndMoveCursor {
+class CommandCtrlU extends CommandScrollAndMoveCursor {
   keys = ['<C-u>'];
   to: EditorScrollDirection = 'up';
+  override setScroll = true;
 
   protected getNumLines(visibleRanges: vscode.Range[]) {
     return configuration.getScrollLines(visibleRanges);
@@ -212,6 +222,10 @@ class CommandCenterScroll extends BaseCommand {
     //   new vscode.Range(vimState.cursorStopPosition, vimState.cursorStopPosition),
     //   vscode.TextEditorRevealType.InCenter
     // );
+    // vimState.editor.revealRange(
+    //   new vscode.Range(vimState.cursorStopPosition, vimState.cursorStopPosition),
+    //   vscode.TextEditorRevealType.InCenter,
+    // );
   }
 }
 
@@ -232,13 +246,13 @@ class CommandCenterScrollFirstChar extends BaseCommand {
     // This particular one moves cursor to first non blank char though
     vimState.editor.revealRange(
       new vscode.Range(vimState.cursorStopPosition, vimState.cursorStopPosition),
-      vscode.TextEditorRevealType.InCenter
+      vscode.TextEditorRevealType.InCenter,
     );
 
     // Move cursor to first char of line
     vimState.cursorStopPosition = TextEditor.getFirstNonWhitespaceCharOnLine(
       vimState.document,
-      vimState.cursorStopPosition.line
+      vimState.cursorStopPosition.line,
     );
   }
 }
@@ -294,7 +308,7 @@ class CommandTopScrollFirstChar extends BaseCommand {
     // Move cursor to first char of line
     vimState.cursorStopPosition = TextEditor.getFirstNonWhitespaceCharOnLine(
       vimState.document,
-      vimState.cursorStopPosition.line
+      vimState.cursorStopPosition.line,
     );
   }
 }
@@ -350,7 +364,7 @@ class CommandBottomScrollFirstChar extends BaseCommand {
     // Move cursor to first char of line
     vimState.cursorStopPosition = TextEditor.getFirstNonWhitespaceCharOnLine(
       vimState.document,
-      vimState.cursorStopPosition.line
+      vimState.cursorStopPosition.line,
     );
   }
 }

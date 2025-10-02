@@ -56,7 +56,9 @@ export class RecordedState {
       this.commandList.length > 0
     ) {
       // Used for the registers and macros that only record on commandList
-      result = this.commandList.join('');
+      // The commandList here saves the ex command, so we should not regex replace the
+      // leader key by the literal string '<leader>', as would have been done for a normal command.
+      return this.commandList.join('');
     }
 
     return result
@@ -81,13 +83,6 @@ export class RecordedState {
     return result
       .replace(new RegExp(configuration.leader.replace(ESCAPE_REGEX, '\\$&'), 'g'), '<leader>')
       .replace(BUFFERED_KEYS_REGEX, '');
-  }
-
-  /**
-   * Determines if the current command list is prefixed with a count
-   */
-  public get commandWithoutCountPrefix() {
-    return this.commandList.join('').replace(/^[0-9]+/g, '');
   }
 
   /**

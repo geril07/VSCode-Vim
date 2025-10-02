@@ -1,14 +1,14 @@
-import { Configuration } from '../testConfiguration';
 import { newTest } from '../testSimplifier';
-import { cleanUpWorkspace, setupWorkspace } from '../testUtils';
+import { setupWorkspace } from '../testUtils';
 
 suite('lastNextObject plugin', () => {
   suite('lastNextObject plugin disabled', () => {
-    setup(async () => {
-      const configuration = new Configuration();
-      await setupWorkspace(configuration, '.js');
+    suiteSetup(async () => {
+      await setupWorkspace({
+        fileExtension: '.js',
+      });
     });
-    teardown(cleanUpWorkspace);
+
     // test next
     newTest({
       title: "next object - should not work as it's disabled",
@@ -30,13 +30,23 @@ suite('lastNextObject plugin', () => {
     });
   });
   suite('lastNextObject plugin', () => {
-    setup(async () => {
-      const configuration = new Configuration();
-      configuration.targets.enable = true;
-      configuration.targets.bracketObjects.enable = true;
-      await setupWorkspace(configuration, '.js');
+    suiteSetup(async () => {
+      await setupWorkspace({
+        config: {
+          targets: {
+            enable: true,
+            bracketObjects: { enable: true },
+            smartQuotes: {
+              enable: false,
+              breakThroughLines: false,
+              aIncludesSurroundingSpaces: true,
+            },
+          },
+        },
+        fileExtension: '.js',
+      });
     });
-    teardown(cleanUpWorkspace);
+
     // test next
     newTest({
       title: 'next object - 1',

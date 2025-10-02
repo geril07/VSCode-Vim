@@ -1,14 +1,6 @@
-import { Mode } from '../../src/mode/mode';
 import { newTest } from '../testSimplifier';
-import { cleanUpWorkspace, setupWorkspace } from './../testUtils';
 
 suite('surrogate-pair', () => {
-  setup(async () => {
-    await setupWorkspace();
-  });
-
-  teardown(cleanUpWorkspace);
-
   newTest({
     title: 'yank single hokke',
     start: ['|𩸽'],
@@ -49,5 +41,12 @@ suite('surrogate-pair', () => {
     start: ['|'],
     keysPressed: 'i🐕🐕<ESC>',
     end: ['🐕🐕|'],
+  });
+
+  newTest({
+    title: 'move left over cute dog',
+    start: ['|𩸽🐕', 'text'],
+    keysPressed: 'jlllkh',
+    end: ['|𩸽🐕', 'text'],
   });
 });

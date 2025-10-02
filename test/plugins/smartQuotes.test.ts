@@ -1,17 +1,25 @@
-import { Configuration } from '../testConfiguration';
 import { newTest } from '../testSimplifier';
-import { cleanUpWorkspace, setupWorkspace } from '../testUtils';
+import { setupWorkspace } from '../testUtils';
 
 suite('smartQuotes plugin', () => {
   suite('smartQuotes.breakThroughLines = false', () => {
-    setup(async () => {
-      const configuration = new Configuration();
-      configuration.targets.enable = true;
-      configuration.targets.smartQuotes.enable = true;
-      configuration.targets.smartQuotes.breakThroughLines = false;
-      await setupWorkspace(configuration, '.js');
+    suiteSetup(async () => {
+      await setupWorkspace({
+        config: {
+          targets: {
+            enable: true,
+            bracketObjects: { enable: true },
+            smartQuotes: {
+              enable: true,
+              breakThroughLines: false,
+              aIncludesSurroundingSpaces: true,
+            },
+          },
+        },
+        fileExtension: '.js',
+      });
     });
-    teardown(cleanUpWorkspace);
+
     // test quotes types
     newTest({
       title: 'single quote - 1',
@@ -709,15 +717,22 @@ suite('smartQuotes plugin', () => {
   });
 
   suite('smartQuotes.breakThroughLines = true', () => {
-    setup(async () => {
-      const configuration = new Configuration();
-      configuration.targets.enable = true;
-      configuration.targets.smartQuotes.enable = true;
-      configuration.targets.smartQuotes.breakThroughLines = true;
-      await setupWorkspace(configuration, '.js');
+    suiteSetup(async () => {
+      await setupWorkspace({
+        config: {
+          targets: {
+            enable: true,
+            bracketObjects: { enable: true },
+            smartQuotes: {
+              enable: true,
+              breakThroughLines: true,
+              aIncludesSurroundingSpaces: true,
+            },
+          },
+        },
+        fileExtension: '.js',
+      });
     });
-
-    teardown(cleanUpWorkspace);
 
     // test next
     newTest({

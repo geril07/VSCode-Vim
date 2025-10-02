@@ -1,18 +1,19 @@
 import * as vscode from 'vscode';
 
-import { RegisterAction, BaseCommand } from '../base';
-import { Mode } from '../../mode/mode';
-import { VimState } from '../../state/vimState';
 import { CommandLine, ExCommandLine, SearchCommandLine } from '../../cmd_line/commandLine';
+import { ChangeCommand } from '../../cmd_line/commands/change';
+import { ErrorCode, VimError } from '../../error';
+import { Mode } from '../../mode/mode';
 import { Register, RegisterMode } from '../../register/register';
 import { RecordedState } from '../../state/recordedState';
-import { TextEditor } from '../../textEditor';
+import { VimState } from '../../state/vimState';
 import { StatusBar } from '../../statusBar';
-import { getPathDetails, readDirectory } from '../../util/path';
+import { TextEditor } from '../../textEditor';
 import { Clipboard } from '../../util/clipboard';
-import { VimError, ErrorCode } from '../../error';
+import { getPathDetails, readDirectory } from '../../util/path';
 import { builtinExCommands } from '../../vimscript/exCommandParser';
 import { SearchDirection } from '../../vimscript/pattern';
+import { BaseCommand, RegisterAction } from '../base';
 
 abstract class CommandLineAction extends BaseCommand {
   modes = [Mode.CommandlineInProgress, Mode.SearchInProgressMode];
@@ -119,11 +120,11 @@ class CommandLineTab extends CommandLineAction {
         p.sep,
         currentUri,
         isRemote,
-        shouldAddDotItems
+        shouldAddDotItems,
       );
       const startWithBaseNameRegex = new RegExp(
         `^${baseName}`,
-        process.platform === 'win32' ? 'i' : ''
+        process.platform === 'win32' ? 'i' : '',
       );
       newCompletionItems = dirItems
         .map((name): [RegExpExecArray | null, string] => [startWithBaseNameRegex.exec(name), name])
@@ -152,6 +153,11 @@ class ExCommandLineEnter extends CommandLineAction {
 
   protected override async run(vimState: VimState, commandLine: CommandLine): Promise<void> {
     await commandLine.run(vimState);
+
+    if (commandLine instanceof ExCommandLine && commandLine.getCommand() instanceof ChangeCommand) {
+      return;
+    }
+
     await vimState.setCurrentMode(Mode.Normal);
   }
 }
@@ -216,7 +222,7 @@ class CommandlineHome extends CommandLineAction {
   keys = [['<Home>'], ['<C-b>']];
 
   protected override async run(vimState: VimState, commandLine: CommandLine): Promise<void> {
-    await commandLine.home();
+    commandLine.home();
   }
 }
 
@@ -225,7 +231,7 @@ class CommandLineEnd extends CommandLineAction {
   keys = [['<End>'], ['<C-e>']];
 
   protected override async run(vimState: VimState, commandLine: CommandLine): Promise<void> {
-    await commandLine.end();
+    commandLine.end();
   }
 }
 
@@ -234,7 +240,7 @@ class CommandLineDeleteWord extends CommandLineAction {
   keys = [['<C-w>'], ['<C-BS>']];
 
   protected override async run(vimState: VimState, commandLine: CommandLine): Promise<void> {
-    await commandLine.deleteWord();
+    commandLine.deleteWord();
   }
 }
 
@@ -243,7 +249,7 @@ class CommandLineDeleteToBeginning extends CommandLineAction {
   keys = ['<C-u>'];
 
   protected override async run(vimState: VimState, commandLine: CommandLine): Promise<void> {
-    await commandLine.deleteToBeginning();
+    commandLine.deleteToBeginning();
   }
 }
 
@@ -252,7 +258,7 @@ class CommandLineWordLeft extends CommandLineAction {
   keys = ['<C-left>'];
 
   protected async run(vimState: VimState, commandLine: CommandLine): Promise<void> {
-    await commandLine.wordLeft();
+    commandLine.wordLeft();
   }
 }
 
@@ -261,7 +267,7 @@ class CommandLineWordRight extends CommandLineAction {
   keys = ['<C-right>'];
 
   protected async run(vimState: VimState, commandLine: CommandLine): Promise<void> {
-    await commandLine.wordRight();
+    commandLine.wordRight();
   }
 }
 
@@ -270,7 +276,7 @@ class CommandLineHistoryBack extends CommandLineAction {
   keys = [['<up>'], ['<C-p>']];
 
   protected async run(vimState: VimState, commandLine: CommandLine): Promise<void> {
-    await commandLine.historyBack();
+    commandLine.historyBack();
   }
 }
 
@@ -279,7 +285,7 @@ class CommandLineHistoryForward extends CommandLineAction {
   keys = [['<down>'], ['<C-n>']];
 
   protected async run(vimState: VimState, commandLine: CommandLine): Promise<void> {
-    await commandLine.historyForward();
+    commandLine.historyForward();
   }
 }
 
@@ -289,16 +295,17 @@ class CommandInsertRegisterContentInCommandLine extends CommandLineAction {
   override isCompleteAction = false;
 
   protected async run(vimState: VimState, commandLine: CommandLine): Promise<void> {
-    if (!Register.isValidRegister(this.keysPressed[1])) {
+    const registerKey = this.keysPressed[1];
+    if (!Register.isValidRegister(registerKey)) {
       return;
     }
 
-    vimState.recordedState.registerName = this.keysPressed[1];
+    vimState.recordedState.registerName = registerKey;
     const register = await Register.get(vimState.recordedState.registerName, this.multicursorIndex);
     if (register === undefined) {
       StatusBar.displayError(
         vimState,
-        VimError.fromCode(ErrorCode.NothingInRegister, vimState.recordedState.registerName)
+        VimError.fromCode(ErrorCode.NothingInRegister, vimState.recordedState.registerName),
       );
       return;
     }
@@ -410,8 +417,8 @@ class CommandAdvanceCurrentMatch extends CommandLineAction {
       key === '<C-g>'
         ? SearchDirection.Forward
         : key === '<C-t>'
-        ? SearchDirection.Backward
-        : undefined;
+          ? SearchDirection.Backward
+          : undefined;
     if (commandLine instanceof SearchCommandLine && direction !== undefined) {
       commandLine.advanceCurrentMatch(vimState, direction);
     }
